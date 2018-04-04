@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <math.h>
-#define part_1 0
-#define part_2_3 0
+#define part_1 1
+#define part_2_3 1
 #define part_4 1
 
 __global__
@@ -39,43 +39,49 @@ __global__
 void print_arr(int *arr, int arr_n){
 	//compute absolute index of thread from 
 	//relative 	grid and block thread index
+	//sync grids
+	    __syncthreads();
 	int	index = blockIdx.x * blockDim.x + threadIdx.x;
 	int stride = gridDim.x*blockDim.x;
-	if(stride+index < arr_n)
-		printf("%d ", arr[index]);  
+	int i;
+	for(i = index; i < arr_n ; i+=stride)
+		printf("%d ", arr[i]);
 }
-int main(){
 
-	int n = 32;
+int main(){
+	int nthreads = 32; //threads per block
+	int nblks; //number of blocks
+	int n; //arr size 
 	int * arr;
 #if part_1
-	make_arr(&arr, n);
 	//run <total_num_blocks, total_num_threads>
 	//create N blocks, 1 block per thread 
 	//since each block is run in parallel	
-	init<<<n,1>>>(n, arr);
+	n = 32;
+	nblks = n/nthreads;
+	make_arr(&arr, n);
+	init<<<nblks,nthreads>>>(n, arr);
+	print_arr<<<nblks,nthreads>>>(arr,n);
 	cudaDeviceSynchronize();
-	//print inorder so run 1 blocks with n threads to print
-	print_arr<<<1,n>>>(arr,n);
 	cudaFree(arr);
 #endif
 #if part_2_3
 	n = 1024;
+	nblks = n/nthreads;
 	make_arr(&arr, n);
-	init<<<n,1>>>(n, arr);
-	add_i<<<n,1>>>(n,arr);
-	print_arr<<<1,n>>>(arr,n);
+	init<<<nblks,nthreads>>>(n, arr);
+	add_i<<<nblks,nthreads>>>(n,arr);
+	print_arr<<<nblks, nthreads>>>(arr,n);
 	cudaDeviceSynchronize();
 	cudaFree(arr);
 #endif
 #if part_4
-	n = 10000;
+	n = 8000;
+	nblks = n/nthreads;
 	make_arr(&arr, n);
-	init<<<n,1>>>(n, arr);
-	add_i<<<n,1>>>(n,arr);
-	//TODO - print each sub array managed by block
-	int nblk = (n-1)/32;
-	print_arr<<<nblk,32>>>(arr,n);
+	init<<<nblks, nthreads>>>(n, arr);
+	add_i<<<nblks, nthreads>>>(n,arr);
+	print_arr<<<nblks,nthreads>>>(arr,n);
 	cudaDeviceSynchronize();
 	cudaFree(arr);
 #endif
