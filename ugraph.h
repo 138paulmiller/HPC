@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-//138paulmiller - Undirected Graph Adjacency matrix
+//138paulmiller - Undirected UGraph Adjacency matrix
 //All functions a prefixed as denoting g_ graph operation
 #define Edge_Type int				
 #define Vertex_Type int				
@@ -88,12 +88,12 @@ void g_print(UGraph * graph)
 	Vertex * vertex = graph->head;
 	while(vertex)
 	{
-		printf("\n%d : ", vertex->value);
+		printf("\n%d: ", vertex->value);
 		edge = vertex->edges;
 		while(edge)
 		{
-			//printf("(%d : %d)", edge->vertex->value, edge->value);
-			printf("%d ", edge->vertex->value);
+			printf("[:%d=%d]", edge->vertex->value, edge->value);
+			//printf("%d ", edge->vertex->value);
 			edge = edge->next;
 		}
 		vertex = vertex->next;
@@ -110,10 +110,13 @@ void g_copy(UGraph * src, UGraph * dest)
 void g_add_vertex(UGraph * graph, Vertex_Type a)
 {
 	//does not check if exists
+	
 	Vertex * vertex = (Vertex*)malloc(sizeof(Vertex));
 	vertex->value = a;
 	vertex->next = graph->head;
+	vertex->edges = 0;
 	graph->head = vertex;
+	
 }
 
 void g_del_vertex(UGraph * graph, Vertex_Type a)
@@ -138,18 +141,18 @@ void g_del_vertex(UGraph * graph, Vertex_Type a)
 			graph->head = vertex->next;
 		}
 		// for each edge, go to edges vertex and remove all edges with found vertex
-		Edge * edge;
-		Edge * other_edge;
-		Edge * trail_edge;
 		while(vertex->edges)
 		{
+		
+			Edge * edge = vertex->edges;
+			Edge * other_edge=0;
+			Edge * trail_edge=0;
 			//del all edges
-			edge = vertex->edges;
 			vertex->edges = edge->next;
 			//get edges vertex (other), then remove all instances of a   
 			Vertex * other_vertex = edge->vertex;
 			other_edge = other_vertex->edges;
-			while(other_edge && other_edge->vertex != vertex)
+			while(other_edge && other_edge->vertex->value != a)
 			{
 				trail_edge = other_edge;
 				other_edge = other_edge->next;
@@ -178,41 +181,103 @@ int g_has_vertex(UGraph * graph, Vertex_Type a)
 
 void g_add_edge(UGraph * graph, Vertex_Type a, Vertex_Type b, Edge_Type e)
 {
+
 	//add to both (bidirectional!
 	Vertex * vertex_a = g_find_vertex(graph, a);
 	Vertex * vertex_b = g_find_vertex(graph, b);
 	//Insert if not found?????
 	if(vertex_a == 0)
 	{
-		g_add_vertex(graph,a); 
-		//adds to head
-		vertex_a = graph->head;
+		vertex_a = (Vertex*)malloc(sizeof(Vertex));
+		vertex_a->value = a;
+		vertex_a->next = graph->head;
+		vertex_a->edges = 0;
+		graph->head = vertex_a;
 	}
 	if(vertex_b == 0)
 	{
-		g_add_vertex(graph,b); 
-		//adds to head
-		vertex_b = graph->head;
+		if(a == b)//do not create new vertex
+			vertex_b = vertex_a;
+		else
+		{
+			vertex_b = (Vertex*)malloc(sizeof(Vertex));
+			vertex_b->value = b;
+			vertex_b->next = graph->head;
+			vertex_b->edges = 0;
+			graph->head = vertex_b;
+		}
 	}
 	//append to edges for bothe vertices
 	//create both edges
 	Edge * edge_a = (Edge*)malloc(sizeof(Edge));
-	Edge * edge_b = (Edge*)malloc(sizeof(Edge));
-	edge_a->value = edge_b->value = e;
+	edge_a->value = e;
 	edge_a->vertex = vertex_b;
-	edge_b->vertex = vertex_a;
 	//append a
 	edge_a->next = vertex_a->edges;
 	vertex_a->edges = edge_a;
-	
-	//append b
-	edge_b->next = vertex_b->edges;
-	vertex_b->edges = edge_b;
-	
+	edge_a = vertex_a->edges;
+	if(a != b)
+	{
+		Edge * edge_b = (Edge*)malloc(sizeof(Edge));
+		edge_b->value = e;
+		edge_b->vertex = vertex_a;
+		//append b
+		edge_b->next = vertex_b->edges;
+		vertex_b->edges = edge_b;
+		edge_b = vertex_b->edges;
+	}
 }
 
 void g_del_edge(UGraph * graph, Vertex_Type a, Vertex_Type b)
 {
+	Vertex * vertex_a = g_find_vertex(graph, a);
+	Vertex * vertex_b = g_find_vertex(graph, b);
+	//if they exist remove each others edges
+	if(vertex_a && vertex_b)
+	{
+		Edge * edge = vertex_a->edges;
+		Edge * trail_edge = 0;
+		while(edge && edge->vertex->value != b)
+		{
+			trail_edge = edge;
+			edge = edge->next;
+		}
+		if(edge)
+		{
+			if(trail_edge)
+				trail_edge->next = edge->next;
+			else
+				vertex_a->edges = edge->next;
+			edge->next = 0;
+			free(edge);		
+			if(vertex_a != vertex_b)
+			{
+				edge = vertex_b->edges;
+				trail_edge = 0;
+				while(edge && edge->vertex->value != a)
+				{
+					trail_edge = edge;
+					edge = edge->next;
+				}
+				if(edge)
+				{
+					if(trail_edge)
+						trail_edge->next = edge->next;
+					else
+						vertex_b->edges = edge->next;
+					edge->next = 0;
+					free(edge);
+				}
+		
+			}
+			else
+			{
+				//only remove one instance
+			}
+		}
+		
+	
+	} 
 }
 
 
@@ -238,10 +303,12 @@ Edge * g_find_edge(UGraph * graph, Vertex_Type a, Vertex_Type b)
 		vertex = vertex->next;
 	if(vertex)
 	{
-		edge = vertex->edges;
-		while(edge && edge->vertex && edge->vertex->value == b)
+		edge = vertex->edges;			
+		while(edge && edge->vertex && edge->vertex->value != b){
 			edge = edge->next;
+		}
 	}
+	
 	return edge;
 }
 
