@@ -4,7 +4,7 @@
 		- map each key of where vertex is  
 */
 #include <vector>
-#include <unordered_map>
+
 #include <iostream>
 #include <iomanip>
 
@@ -37,8 +37,6 @@ private:
 	int vertexIndex(Vertex_Type a);
 	//all vectors
 	std::vector<Vertex> m_vertices;
-	//Map key to vertex in vertex vector, used to acheive near O(1) vertex lookup
-	std::unordered_map<Vertex_Type, int> m_index_map; 
 	//edges
 	std::vector<std::vector<Edge_Type> > m_adj_matrix;
 };
@@ -78,7 +76,6 @@ void Graph<Vertex_Type, Edge_Type>::addVertex(Vertex_Type a){
 	if(i == -1){ //does not exist so add
 		i = m_vertices.size();
 		Vertex v = {a, i};
-		m_index_map[a] = i;
 		m_vertices.push_back(v); 
 		m_adj_matrix.push_back(std::vector<Edge_Type>());
 		for(typename std::vector<std::vector<Edge_Type> >::iterator it = m_adj_matrix.begin(); 
@@ -93,21 +90,24 @@ template <typename Vertex_Type, typename Edge_Type>
 void Graph<Vertex_Type, Edge_Type>::removeVertex(Vertex_Type a){
 	int i = vertexIndex(a);
 	if(i != -1){ // exists so del
-		m_index_map.erase(a);
-		m_vertices.erase(m_vertices.begin()+i); 
+		m_vertices.erase(m_vertices.begin()+i);
+		 
 		for(typename std::vector<std::vector<Edge_Type> >::iterator it = m_adj_matrix.begin(); 
 							it!= m_adj_matrix.end(); it++){
 			it->erase(it->begin()+i);
 		}
+		//update all indices starting at i
+		for(typename std::vector<Vertex>::iterator it = m_vertices.begin()+i; it != m_vertices.end(); it++) 
+			it->index--;
 	}
 }
 
 template <typename Vertex_Type, typename Edge_Type>
 int Graph<Vertex_Type, Edge_Type>::vertexIndex(Vertex_Type a){
-	typename std::unordered_map<Vertex_Type, int> ::iterator it = m_index_map.find(a);
-	if(it == m_index_map.end())
-		return -1;
-	return it->second;
+	for(typename std::vector<Vertex>::iterator it = m_vertices.begin(); it != m_vertices.end(); it++) 
+			if(it->value == a)
+				return it->index;
+	return -1;
 }
 
 template <typename Vertex_Type, typename Edge_Type>
