@@ -11,7 +11,8 @@
 template <typename Vertex_Type>
 struct Vertex{
 	Vertex_Type value;
-	size_t index; 	//index within adj matrix and vertices set
+	int index; 	//index within adj matrix and vertices set
+	int degree;
 };
 
 template <typename Vertex_Type, typename Edge_Type>
@@ -29,6 +30,7 @@ public:
 	Edge_Type at(Vertex_Type a, Vertex_Type b);
 	std::vector<Vertex_Type> adjacent(Vertex_Type a); //gt array of adjacent vertices
     Vertex<Vertex_Type>* get(Vertex_Type a) const;
+	Vertex<Vertex_Type>* toArray();
 
 	int indexOf(Vertex_Type a) const;
 
@@ -52,7 +54,7 @@ Graph<Vertex_Type, Edge_Type>::Graph()
 }
 
 template <typename Vertex_Type, typename Edge_Type>
-Graph<Vertex_Type, Edge_Type>::~Graph(){}
+Graph<Vertex_Type, Edge_Type>::~Graph()= default;
 
 
 template <typename Vertex_Type, typename Edge_Type>
@@ -69,7 +71,7 @@ void Graph<Vertex_Type, Edge_Type>::print() const{
 		std::cout << std::setw(5) << v.value << "|";
 		for(auto const& e : edges)
 			std::cout << std::setw(5) << e;
-		std::cout << '\n';
+		std::cout << " = "<< v.degree << "\n";
 	}
 
 }
@@ -84,8 +86,8 @@ void Graph<Vertex_Type, Edge_Type>::print() const{
 template <typename Vertex_Type, typename Edge_Type>
 void Graph<Vertex_Type, Edge_Type>::addVertex(Vertex_Type a){
 	if(!contains(a)){ // does not exist so add
-		size_t i = m_vertices.size();
-		Vertex<Vertex_Type> v = {a, i};
+		int i = m_vertices.size();
+		Vertex<Vertex_Type> v = {a, i, 0};
 		m_vertices.push_back(v);
 		m_adj_matrix.push_back(std::vector<Edge_Type>());
 		for(typename std::vector<std::vector<Edge_Type> >::iterator it = m_adj_matrix.begin();
@@ -104,18 +106,31 @@ void Graph<Vertex_Type, Edge_Type>::addVertex(Vertex_Type a){
 template <typename Vertex_Type, typename Edge_Type>
 void Graph<Vertex_Type, Edge_Type>::removeVertex(Vertex_Type a){
 	int i = indexOf(a);
-	if(i != -1){ // exists so del
+	if(i != -1) { // exists so del
+		for (typename std::vector<Vertex<Vertex_Type>>::iterator it = m_vertices.begin() + i;
+			 it != m_vertices.end(); it++){
+			if(m_adj_matrix[i][it->index] != Edge_Type() ||
+					m_adj_matrix[it->index][i] != Edge_Type()){
+				//if edge
+				it->degree--;//decrease b, not a since will be deleted
+
+			}
+		}
 
 		m_vertices.erase(m_vertices.begin() + i);
 
-		for(typename std::vector<std::vector<Edge_Type> >::iterator it = m_adj_matrix.begin();
-			it!= m_adj_matrix.end(); it++){
+		for (typename std::vector<std::vector<Edge_Type> >::iterator it = m_adj_matrix.begin();
+			 it != m_adj_matrix.end(); it++) {
 			it->erase(it->begin() + i);
 		}
 
+		m_adj_matrix.erase(m_adj_matrix.begin() + i);
+
 		//update all indices starting at i
-		for(typename std::vector<Vertex<Vertex_Type>>::iterator it = m_vertices.begin() + i; it != m_vertices.end(); it++)
+		for (typename std::vector<Vertex<Vertex_Type>>::iterator it = m_vertices.begin() + i;
+			 it != m_vertices.end(); it++){
 			it->index--;
+		}
 	}
 }
 
@@ -134,11 +149,17 @@ void Graph<Vertex_Type, Edge_Type>::addEdge(Vertex_Type a, Vertex_Type b, Edge_T
 		m_adj_matrix[i][j] = value;
 		m_adj_matrix[j][i] = value;
 		num_edges++;
+		m_vertices[i].degree++;
+		m_vertices[j].degree++;
 	}
 }
 
 /**
- * TODO:
+ * Returns the edge value between Vertex a and Vertex b.
+ *
+ * @param a The unique value of the first vertex.
+ * @param b The unique value of the second vertex.
+ * @return The edge value between the two vertices.
  */
 template <typename Vertex_Type, typename Edge_Type>
 Edge_Type Graph<Vertex_Type, Edge_Type>::at(Vertex_Type a, Vertex_Type b){
@@ -189,6 +210,18 @@ Vertex<Vertex_Type>* Graph<Vertex_Type, Edge_Type>::get(Vertex_Type a) const{
 	}
 	return result;
 }
+
+/**
+ * Returns the address of the first element of the vertex vector.
+ *
+ * @return The address of the first element. If the Graph is empty, null
+ * will be returned.
+ */
+template <typename Vertex_Type, typename Edge_Type>
+Vertex<Vertex_Type>* Graph<Vertex_Type, Edge_Type>::toArray(){
+	return !isEmpty() ? &m_vertices[0] : nullptr;
+};
+
 
 /**
  * Returns the index of the first occurrence of the specified vertex in this graph,

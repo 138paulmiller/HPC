@@ -1,62 +1,81 @@
-#include "graph.hpp"
+#include "helper.hpp"
+#include <cstddef>
 #include <mpi.h>
 
-/**
- * Returns a unique subset of vertices from a non-empty graph object, based on the world_size
- * and world_rank parameters.
- *
- * @param graph A non-empty graph object.
- * @param rank The world rank of process.
- * @return A unique subset of vertices from the graph.
- */
-std::vector<Vertex> PartitionGraph(Graph<int,int> &graph, int world_size, int world_rank){
-    assert(!graph.isEmpty());
-    assert(world_rank >= 0);
 
-    size_t num_vertices = graph.size() / world_size;
-    std::vector<Vertex> result;
-    result.reserve(num_vertices);
 
-    // Get vertices from the graph. Offsetting by the world_rank retrieves distinct vertices.
-    for (int i = 0; i < num_vertices; i++){
-        // TODO: Get vertices from the graph
-    }
+int main(int argc, char** argv) {
 
-    return result;
-};
+    Graph<int, int> original;                   // The original graph.
+    Graph<int, int> result;                     // The result graph.
+    int world_rank;                             // The unique ID of the process.
+    int world_size;                             // The number of processes.
+    size_t density;                             // The graph density.
+    std::vector<int> send_counts;               // Contains the number of vertices for each process to work with.
+    std::vector<int> offsets;                    // Contains the starting index of the vertex vector for each process.
+    std::vector<Vertex<int>> receive_buffer;    // Buffer containing the subset of vertices from the graph to work with.
+    const int N_VERT = 3;                       // The number of vertices to create.
 
-int main(int argc, char** argv){
-
-    Graph<int, int> original;
-    Graph<int, int> result;
-    int world_rank;
-    int world_size;
-    size_t density;
-
-    MPI_Init(NULL, NULL);
+    // MPI Initialization
+    MPI_Init(nullptr, nullptr);
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
-    // Make sure there aren't more processes than vertices in the graph.
-    assert(original.size() > world_size);
-
-    density = original.density();
-
-    if (world_rank != 0){
-        auto sub_graph = PartitionGraph(original, world_size, world_rank);
-        for (auto const& vertex : sub_graph){
-            // TODO: Compute degree of each vertex and if it's <= 2(1+e) * p(S), return the vertices to remove to process 0.
-        }
-
-         // TODO: Send information back to process 0 so that it can reduce the map
-
-    } else{
-        // TODO: Collect information from child processes
-        // TODO: Reduce graph, calculate density (P) and store new graph in 'result' if P > the before P value.
-        // TODO: Continue looping until the original graph is empty.
+    // Initialize graph here!
+    if (world_rank == 0) {
+        for (int i = 1; i <= N_VERT; i++)
+            original.addVertex(i);
     }
 
-    result.print();
+
+    // Create a new MPI data type for our Vertex struct.
+    const int nitems = 3;
+    int blocklengths[3] = {1, 1, 1};
+    MPI_Datatype types[3] = {MPI_INT, MPI_INT, MPI_INT};
+    MPI_Datatype mpi_vertex_type;
+    MPI_Aint struct_offsets[3];
+    struct_offsets[0] = offsetof(Vertex<int>, value);
+    struct_offsets[1] = offsetof(Vertex<int>, index);
+    struct_offsets[2] = offsetof(Vertex<int>, degree);
+    MPI_Type_create_struct(nitems, blocklengths, struct_offsets, types, &mpi_vertex_type);
+    MPI_Type_commit(&mpi_vertex_type);
+
+    // Compute initial density of the graph
+    density = original.density();
+
+    if (world_rank == 0) {
+        computeSendCounts(original, world_size, send_counts, offsets);
+
+        std::cout << "\nSENDS:\n";
+        for (int i = 0; i < send_counts.size(); i++) {
+            std::cout << send_counts[i] << " ";
+        }
+        std::cout << "\nDISP:\n";
+        for (int i = 0; i < offsets.size(); i++) {
+            std::cout << offsets[i] << " ";
+        }
+        std::cout << "\n";
+    }
+    receive_buffer.resize(world_size);
+    if(send_counts.size() > 1) {
+
+        MPI_Scatterv(original.toArray(), &send_counts[0], &offsets[0], mpi_vertex_type,
+                     &receive_buffer[0], receive_buffer.size(), mpi_vertex_type,
+                     0, MPI_COMM_WORLD);
+
+        MPI_Barrier(MPI_COMM_WORLD);
+        for (int i = 0; i < receive_buffer.size(); i++){
+            std::cout << "\nP" << world_rank << ": " << receive_buffer[i].value;
+        }
+    }
+        // only one, root will handle
+    else{
+        if(world_rank == 0){
+            for (int i = 0; i < original.size(); i++){
+                std::cout << "\nP" << world_rank << ": " << original.toArray()[i].value;
+            }
+        }
+    }
 
     MPI_Finalize();
 }
