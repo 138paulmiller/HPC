@@ -6,10 +6,13 @@
 #include <vector>
 #include <iostream>
 #include <iomanip>
+#include <cassert>
 
 
 template <typename Vertex_Type>
 struct Vertex{
+	Vertex() : value(-1), index(-1), degree(-1) {}
+	Vertex(Vertex_Type v, int i, int d) : value(v), index(i), degree(d) {}
 	Vertex_Type value;
 	int index; 	//index within adj matrix and vertices set
 	int degree;
@@ -37,7 +40,7 @@ public:
 	bool isEmpty() const;
 	bool contains(Vertex_Type key) const;
 
-	size_t density() const;
+	float density() const;
 	size_t size() const;
 
 private:
@@ -254,8 +257,8 @@ bool Graph<Vertex_Type, Edge_Type>::contains(Vertex_Type key) const{
  * @return The density of the graph.
  */
 template <typename Vertex_Type, typename Edge_Type>
-size_t Graph<Vertex_Type, Edge_Type>::density() const {
-	return isEmpty() ? 0 : (num_edges / m_vertices.size());
+float Graph<Vertex_Type, Edge_Type>::density() const {
+	return isEmpty() ? 0 : ((float)num_edges / (float)m_vertices.size());
 }
 
 /**
