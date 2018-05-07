@@ -14,7 +14,7 @@ struct Vertex{
 	Vertex() : value(-1), index(-1), degree(-1) {}
 	Vertex(Vertex_Type v, int i, int d) : value(v), index(i), degree(d) {}
 	Vertex_Type value;
-	int index; 	//index within adj matrix and vertices set
+	int index; 	// index within adj matrix and vertices set
 	int degree;
 };
 

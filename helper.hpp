@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstddef>
 #include <mpi.h>
+#include <fstream>
 
 
 /**
@@ -18,7 +19,6 @@
  * @param num_vertices The number of vertices in the graph.
  */
 void ComputeSendAndStrideCounts(std::vector<int> &sendcounts, std::vector<int>& strides, int world_size, int num_vertices){
-
     int sum = 0;
     int remainder = (num_vertices) % world_size;
     for (int i = 0; i < world_size; i++) {
@@ -44,7 +44,7 @@ void ComputeSendAndStrideCounts(std::vector<int> &sendcounts, std::vector<int>& 
 template <typename T>
 void ComputeVerticesToRemove(std::vector<Vertex<T>>& vertices, int epsilon, double density){
     for (auto & v : vertices){
-        //if keep set to -1
+        // If keep set to -1
         if (v.degree > 2 * (1 + epsilon) * density){
             v.value = -1;
         }
@@ -69,22 +69,23 @@ void CreateVertexTypeMPI(MPI_Datatype& mpi_vertex_type){
 }
 
 
-#define EDGE(a,b) g.addEdge(a, b, 1);
-
 /**
- * TODO: Rewrite this function or come up with a more dynamic way of initializing the graph.
+ * Reads from an input file with the given file path, loading the
+ * contents into a Graph object.
  *
  * @param g An empty graph to fill.
- * @param N The number of vertices to fill the graph with.
+ * @param file_name The path to the input file.
  */
 template <typename V, typename E>
-void LoadGraph(Graph<V,E>& g, int N){
-#include "graph"
+void LoadGraph(Graph<V,E>& g, const std::string& file_name){
+    std::ifstream infile(file_name);
+    if (infile.is_open()){
+        int a, b;
+        while (infile >> a >> b){
+            g.addEdge(a, b, 1);
+        }
+    } else{
+        fprintf(stderr, "ERROR, Unable to open file.\n");
+    }
+    infile.close();
 };
-
-
-void debug(int rank, const std::string &msg){
-    MPI_Barrier(MPI_COMM_WORLD);
-    if (rank == 0) std::cout << msg;
-    MPI_Barrier(MPI_COMM_WORLD);
-}
