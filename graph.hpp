@@ -110,12 +110,13 @@ template <typename Vertex_Type, typename Edge_Type>
 void Graph<Vertex_Type, Edge_Type>::removeVertex(Vertex_Type a){
 	int i = indexOf(a);
 	if(i != -1) { // exists so del
-		for (typename std::vector<Vertex<Vertex_Type>>::iterator it = m_vertices.begin() + i;
+		for (typename std::vector<Vertex<Vertex_Type>>::iterator it = m_vertices.begin();
 			 it != m_vertices.end(); it++){
-			if(m_adj_matrix[i][it->index] != Edge_Type() ||
+			if(m_adj_matrix[i][it->index] != Edge_Type() &&
 					m_adj_matrix[it->index][i] != Edge_Type()){
 				//if edge
 				it->degree--;//decrease b, not a since will be deleted
+                num_edges--;
 
 			}
 		}
@@ -148,13 +149,20 @@ template <typename Vertex_Type, typename Edge_Type>
 void Graph<Vertex_Type, Edge_Type>::addEdge(Vertex_Type a, Vertex_Type b, Edge_Type value){
 	int i = indexOf(a);
 	int j = indexOf(b);
-	if(i != -1 && j != -1){
+	if(i == -1) {
+		addVertex(a);
+		i = indexOf(a);
+
+	}
+	if(j == -1) {
+		addVertex(b);
+		j = indexOf(b);
+	}
 		m_adj_matrix[i][j] = value;
 		m_adj_matrix[j][i] = value;
 		num_edges++;
 		m_vertices[i].degree++;
 		m_vertices[j].degree++;
-	}
 }
 
 /**

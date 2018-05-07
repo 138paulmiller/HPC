@@ -42,17 +42,13 @@ void ComputeSendAndStrideCounts(std::vector<int> &sendcounts, std::vector<int>& 
  * @return A vector of vertices that are eligible for removal.
  */
 template <typename T>
-std::vector<Vertex<T>> ComputeVerticesToRemove(std::vector<Vertex<T>>& vertices, int epsilon, double density){
-    std::vector<Vertex<T>> result;
+void ComputeVerticesToRemove(std::vector<Vertex<T>>& vertices, int epsilon, double density){
     for (auto & v : vertices){
-        if (v.value == -1) { // When the value of v is -1, that means the rest of the vector is empty.
-            break;
-        }
-        if (v.degree <= 2 * (1 + epsilon) * density){
-            result.push_back(v);
+        //if keep set to -1
+        if (v.degree > 2 * (1 + epsilon) * density){
+            v.value = -1;
         }
     }
-    return result;
 }
 
 /**
@@ -72,6 +68,9 @@ void CreateVertexTypeMPI(MPI_Datatype& mpi_vertex_type){
     MPI_Type_commit(&mpi_vertex_type);
 }
 
+
+#define EDGE(a,b) g.addEdge(a, b, 1);
+
 /**
  * TODO: Rewrite this function or come up with a more dynamic way of initializing the graph.
  *
@@ -80,22 +79,12 @@ void CreateVertexTypeMPI(MPI_Datatype& mpi_vertex_type){
  */
 template <typename V, typename E>
 void LoadGraph(Graph<V,E>& g, int N){
-    for (int i = 1; i <= N; i++) g.addVertex(i);
-    g.addEdge(0, 6, 1);
-    g.addEdge(0, 2, 1);
-    g.addEdge(1, 2, 1);
-    g.addEdge(1, 3, 1);
-    g.addEdge(1, 4, 1);
-    g.addEdge(2, 4, 1);
-    g.addEdge(2, 8, 1);
-    g.addEdge(2, 3, 1);
-    g.addEdge(3, 4, 1);
-    g.addEdge(3, 8, 1);
-    g.addEdge(4, 6, 1);
-    g.addEdge(4, 7, 1);
-    g.addEdge(4, 8, 1);
-    g.addEdge(4, 5, 1);
-    g.addEdge(8, 9, 1);
-    g.addEdge(8, 10, 1);
+#include "graph"
 };
 
+
+void debug(int rank, const std::string &msg){
+    MPI_Barrier(MPI_COMM_WORLD);
+    if (rank == 0) std::cout << msg;
+    MPI_Barrier(MPI_COMM_WORLD);
+}
