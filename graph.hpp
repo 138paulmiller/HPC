@@ -6,12 +6,15 @@
 #include <vector>
 #include <iostream>
 #include <iomanip>
+#include <cassert>
 
 
 template <typename Vertex_Type>
 struct Vertex{
+	Vertex() : value(-1), index(-1), degree(-1) {}
+	Vertex(Vertex_Type v, int i, int d) : value(v), index(i), degree(d) {}
 	Vertex_Type value;
-	int index; 	//index within adj matrix and vertices set
+	int index; 	// index within adj matrix and vertices set
 	int degree;
 };
 
@@ -37,7 +40,7 @@ public:
 	bool isEmpty() const;
 	bool contains(Vertex_Type key) const;
 
-	size_t density() const;
+	float density() const;
 	size_t size() const;
 
 private:
@@ -107,12 +110,13 @@ template <typename Vertex_Type, typename Edge_Type>
 void Graph<Vertex_Type, Edge_Type>::removeVertex(Vertex_Type a){
 	int i = indexOf(a);
 	if(i != -1) { // exists so del
-		for (typename std::vector<Vertex<Vertex_Type>>::iterator it = m_vertices.begin() + i;
+		for (typename std::vector<Vertex<Vertex_Type>>::iterator it = m_vertices.begin();
 			 it != m_vertices.end(); it++){
-			if(m_adj_matrix[i][it->index] != Edge_Type() ||
+			if(m_adj_matrix[i][it->index] != Edge_Type() &&
 					m_adj_matrix[it->index][i] != Edge_Type()){
 				//if edge
 				it->degree--;//decrease b, not a since will be deleted
+                num_edges--;
 
 			}
 		}
@@ -145,13 +149,20 @@ template <typename Vertex_Type, typename Edge_Type>
 void Graph<Vertex_Type, Edge_Type>::addEdge(Vertex_Type a, Vertex_Type b, Edge_Type value){
 	int i = indexOf(a);
 	int j = indexOf(b);
-	if(i != -1 && j != -1){
+	if(i == -1) {
+		addVertex(a);
+		i = indexOf(a);
+
+	}
+	if(j == -1) {
+		addVertex(b);
+		j = indexOf(b);
+	}
 		m_adj_matrix[i][j] = value;
 		m_adj_matrix[j][i] = value;
 		num_edges++;
 		m_vertices[i].degree++;
 		m_vertices[j].degree++;
-	}
 }
 
 /**
@@ -254,8 +265,8 @@ bool Graph<Vertex_Type, Edge_Type>::contains(Vertex_Type key) const{
  * @return The density of the graph.
  */
 template <typename Vertex_Type, typename Edge_Type>
-size_t Graph<Vertex_Type, Edge_Type>::density() const {
-	return isEmpty() ? 0 : (num_edges / m_vertices.size());
+float Graph<Vertex_Type, Edge_Type>::density() const {
+	return isEmpty() ? 0 : ((float)num_edges / (float)m_vertices.size());
 }
 
 /**

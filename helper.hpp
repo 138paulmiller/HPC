@@ -1,39 +1,91 @@
 #include "graph.hpp"
 #include <cassert>
 #include <cmath>
+#include <cstddef>
+#include <mpi.h>
+#include <fstream>
 
 
 /**
  * This function calculates two things:
  *      1). It computes the number of vertices that each process will work with (N).
- *      2). It computes the starting index that each process will receive N vertices from (the offset).
+ *      2). It computes the starting index that each process will receive N vertices from (the stride value).
  *
- * The results of both of these are stored in @param send_counts and @param offset.
+ * The results of both of these are stored in @param sendcounts and @param strides.
  *
- * @param graph A graph object.
+ * @param sendcounts A vector containing the number of vertices to delegate to each process.
+ * @param strides A vector containing the starting index for each process to start getting vertices from.
  * @param world_size The number of processes.
- * @param send_counts A vector containing the number of vertices to delegate to each process.
- * @param offset A vector containing the starting index for each process to start getting vertices from.
- *
+ * @param num_vertices The number of vertices in the graph.
  */
-void computeSendCounts(Graph<int, int> &graph, int world_size, std::vector<int> &send_counts, std::vector<int>& offset){
-
-    // If there are less vertices than processes, process 0 will be delegated with all of the vertices.
-    if(graph.size() / world_size < 1){
-        send_counts.resize(1, graph.size());
-        offset.resize(1,0);
+void ComputeSendAndStrideCounts(std::vector<int> &sendcounts, std::vector<int>& strides, int world_size, int num_vertices){
+    int sum = 0;
+    int remainder = (num_vertices) % world_size;
+    for (int i = 0; i < world_size; i++) {
+        sendcounts[i] = (num_vertices) / world_size;
+        if (remainder > 0) {
+            sendcounts[i]++;
+            remainder--;
+        }
+        strides[i] = sum;
+        sum += sendcounts[i];
     }
-    else {
-        int v_per_rank = (int)ceil(graph.size() / world_size);
-        send_counts.resize(world_size, v_per_rank);
-        offset.resize(world_size);
+}
 
-        send_counts[world_size - 1] = graph.size() - (world_size - 1) * v_per_rank;
-        int temp = 0;
-        for (int i = 0; i < world_size; ++i) {
-            offset[i] = temp;
-            temp += send_counts[i];
+
+/**
+ * Determines which vertices are eligible for removal. A vertex V is eligible for removal
+ * from Graph G if the following inequality holds true: degree(V) <= 2(1 + epsilon) * density(G).
+ *
+ * @param vertices A vector of vertex objects.
+ * @param epsilon The heuristic value (variable e from the algorithm in the book).
+ * @return A vector of vertices that are eligible for removal.
+ */
+template <typename T>
+void ComputeVerticesToRemove(std::vector<Vertex<T>>& vertices, int epsilon, double density){
+    for (auto & v : vertices){
+        // If keep set to -1
+        if (v.degree > 2 * (1 + epsilon) * density){
+            v.value = -1;
         }
     }
 }
 
+/**
+ * Helper function to construct a custom MPI object.
+ *
+ * @param mpi_vertex_type an MPI_Datatype reference.
+ */
+void CreateVertexTypeMPI(MPI_Datatype& mpi_vertex_type){
+    const int nitems = 3;
+    int blocklengths[3] = {1, 1, 1};
+    MPI_Datatype types[3] = {MPI_INT, MPI_INT, MPI_INT};
+    MPI_Aint offsets[3];
+    offsets[0] = offsetof(Vertex<int>, value);
+    offsets[1] = offsetof(Vertex<int>, index);
+    offsets[2] = offsetof(Vertex<int>, degree);
+    MPI_Type_create_struct(nitems, blocklengths, offsets, types, &mpi_vertex_type);
+    MPI_Type_commit(&mpi_vertex_type);
+}
+
+
+/**
+ * Reads from an input file with the given file path, loading the
+ * contents into a Graph object.
+ *
+ * @param g An empty graph to fill.
+ * @param file_name The path to the input file.
+ */
+template <typename V, typename E>
+void LoadGraph(Graph<V,E>& g, const std::string& file_name){
+    std::ifstream infile(file_name);
+    if (infile.is_open()){
+        int a, b;
+        while (infile >> a >> b){
+            g.addEdge(a, b, 1);
+        }
+    } else{
+        fprintf(stderr, "ERROR, Unable to open file.\n");
+    }
+    infile.close();
+};

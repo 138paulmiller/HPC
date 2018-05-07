@@ -1,80 +1,95 @@
+/*
+ * Hassan Hamod, Paul Miller, Blake Molina
+ * CPSC 479
+ * Project 02
+ * Dr. Doina Bein
+ *
+ * */
+
+
 #include "helper.hpp"
-#include <cstddef>
-#include <mpi.h>
 
 
+int main(int argc, char *argv[]) {
 
-int main(int argc, char** argv) {
+    Graph<int, int> original;                       // The original graph.txt.
+    Graph<int, int> result;                         // The result graph.txt.
+    int world_rank;                                 // The unique ID of the process.
+    int world_size;                                 // The number of processes.
+    float density;                                  // The graph.txt density.
+    std::vector<int> sendcounts;                    // Contains the number of vertices for each process to work with.
+    std::vector<int> strides;                       // Contains the starting index of the vertex vector for each process.
+    std::vector<Vertex<int>> root_receive_buffer;   // Buffer containing the subset of vertices from the graph.txt to work with.
+    std::vector<Vertex<int>> proc_receive_buffer;   // Buffer containing the subset of vertices from the graph.txt to work with.
+    int N_VERT = 11;                                // The number of vertices to create.
+    const float EPSILON = 0.1;                      // Heuristic value for removing vertices.
+    const std::string FILE_PATH = "graph.txt";      // Name of the input file for the graph.txt.
 
-    Graph<int, int> original;                   // The original graph.
-    Graph<int, int> result;                     // The result graph.
-    int world_rank;                             // The unique ID of the process.
-    int world_size;                             // The number of processes.
-    size_t density;                             // The graph density.
-    std::vector<int> send_counts;               // Contains the number of vertices for each process to work with.
-    std::vector<int> offsets;                    // Contains the starting index of the vertex vector for each process.
-    std::vector<Vertex<int>> receive_buffer;    // Buffer containing the subset of vertices from the graph to work with.
-    const int N_VERT = 3;                       // The number of vertices to create.
-
-    // MPI Initialization
-    MPI_Init(nullptr, nullptr);
+    MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
-    // Initialize graph here!
+    // Graph initialization.
     if (world_rank == 0) {
-        for (int i = 1; i <= N_VERT; i++)
-            original.addVertex(i);
+        LoadGraph(original, FILE_PATH);
+        density = original.density();
     }
 
+    // Initialize buffers.
+    sendcounts.resize(world_size);
+    strides.resize(world_size);
+    root_receive_buffer.resize(N_VERT);
 
     // Create a new MPI data type for our Vertex struct.
-    const int nitems = 3;
-    int blocklengths[3] = {1, 1, 1};
-    MPI_Datatype types[3] = {MPI_INT, MPI_INT, MPI_INT};
     MPI_Datatype mpi_vertex_type;
-    MPI_Aint struct_offsets[3];
-    struct_offsets[0] = offsetof(Vertex<int>, value);
-    struct_offsets[1] = offsetof(Vertex<int>, index);
-    struct_offsets[2] = offsetof(Vertex<int>, degree);
-    MPI_Type_create_struct(nitems, blocklengths, struct_offsets, types, &mpi_vertex_type);
-    MPI_Type_commit(&mpi_vertex_type);
+    CreateVertexTypeMPI(mpi_vertex_type);
 
-    // Compute initial density of the graph
-    density = original.density();
+     while (N_VERT > 0){
 
-    if (world_rank == 0) {
-        computeSendCounts(original, world_size, send_counts, offsets);
+        ComputeSendAndStrideCounts(sendcounts, strides, world_size, N_VERT);
 
-        std::cout << "\nSENDS:\n";
-        for (int i = 0; i < send_counts.size(); i++) {
-            std::cout << send_counts[i] << " ";
+        proc_receive_buffer.resize(sendcounts[world_rank]);
+
+        // Scatter the vertices that need to be processed to the child processes.
+        if (sendcounts[world_rank] != 0) {
+            MPI_Scatterv(original.toArray(), &sendcounts[0], &strides[0], mpi_vertex_type,
+                         &proc_receive_buffer[0], proc_receive_buffer.size(), mpi_vertex_type,
+                         0, MPI_COMM_WORLD);
         }
-        std::cout << "\nDISP:\n";
-        for (int i = 0; i < offsets.size(); i++) {
-            std::cout << offsets[i] << " ";
-        }
-        std::cout << "\n";
-    }
-    receive_buffer.resize(world_size);
-    if(send_counts.size() > 1) {
 
-        MPI_Scatterv(original.toArray(), &send_counts[0], &offsets[0], mpi_vertex_type,
-                     &receive_buffer[0], receive_buffer.size(), mpi_vertex_type,
-                     0, MPI_COMM_WORLD);
+        MPI_Bcast(&density, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
-        MPI_Barrier(MPI_COMM_WORLD);
-        for (int i = 0; i < receive_buffer.size(); i++){
-            std::cout << "\nP" << world_rank << ": " << receive_buffer[i].value;
-        }
-    }
-        // only one, root will handle
-    else{
-        if(world_rank == 0){
-            for (int i = 0; i < original.size(); i++){
-                std::cout << "\nP" << world_rank << ": " << original.toArray()[i].value;
+        ComputeVerticesToRemove(proc_receive_buffer, EPSILON, density);
+
+        // Gather the vertices that need to be removed to the root process.
+        MPI_Gatherv(&proc_receive_buffer[0], proc_receive_buffer.size(), mpi_vertex_type, &root_receive_buffer[0],
+                        &sendcounts[0], &strides[0], mpi_vertex_type, 0, MPI_COMM_WORLD);
+
+
+        if (world_rank == 0){
+            int i = 0;
+            for (auto & v : root_receive_buffer){
+                if(v.value >= 0) original.removeVertex(v.value);
+                else i++;
             }
+
+            root_receive_buffer.resize(i);
+
+            if (original.density() > density){
+                density = original.density();
+                result = original;
+            }
+
+            N_VERT = original.size();
         }
+
+        MPI_Bcast(&N_VERT, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    }
+
+    if (world_rank == 0){
+        std::cout << "\n*** Results ***\n";
+        result.print();
+        std::cout << "\nDensity: " << result.density() << "\n";
     }
 
     MPI_Finalize();
